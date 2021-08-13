@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">bleTest</string>
+    <string name="ble_not_supported">ble_not_supported</string>
+    <string name="error_bluetooth_not_supported">error_bluetooth_not_supported</string>
+
+    <string name="element_text">Element</string>
+    <string name="grid_layout_manager">Grid Layout Manager</string>
+    <string name="linear_layout_manager">Linear Layout Manager</string>
+</resources>
