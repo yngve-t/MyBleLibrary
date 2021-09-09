@@ -1,6 +1,7 @@
 package com.example.myblelibrary;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -8,6 +9,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import android.Manifest;
 
+import android.app.ProgressDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
@@ -28,12 +30,19 @@ import org.apache.commons.math3.fitting.leastsquares.LeastSquaresOptimizer;
 import org.apache.commons.math3.fitting.leastsquares.LevenbergMarquardtOptimizer;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 
 public class MainActivity extends AppCompatActivity implements ASScannerCallback {
+
+    private RecyclerView mRecyclerView;
+    private RecyclerView.LayoutManager mLayoutManager;
+    private static CustomAdapter mAdapter = new CustomAdapter();
 
     private final String TAG = "resulty";
 
@@ -41,24 +50,22 @@ public class MainActivity extends AppCompatActivity implements ASScannerCallback
     private final String bNew = "E1:9E:37:95:13:5F";
     private List<String> macAddresses = new ArrayList<String>();
 
-    protected RecyclerView mRecyclerView;
-    protected RecyclerView.LayoutManager mLayoutManager;
-    protected static CustomAdapter mAdapter = new CustomAdapter();
-
-
     private Map<String, Beacon> inBeacon = new HashMap<>();
 
-    private String pMaxMac;
-    private String pMidMac;
-    private String pMinMac;
-    private double pMaxVal = -100;
-    private double pMidVal = -100;
-    private double pMinVal = -100;
+    private Map<String, double[]> coordinates = new HashMap<>();
 
 
     private final float mPower = -58.0f;
     private final int REQUEST_ENABLE_BT = 1;
 
+    @RequiresApi(api = Build.VERSION_CODES.N)
+    public static <K, V extends Comparable<? super V>> Map<String, com.example.myblelibrary.Beacon> sortByValue(Map<String, com.example.myblelibrary.Beacon> map) {
+        Map<String, com.example.myblelibrary.Beacon> result = new LinkedHashMap<>();
+        Stream <Map.Entry<String, com.example.myblelibrary.Beacon>> stream = map.entrySet().stream();
+        stream.sorted(Comparator.comparing(e -> e.getValue().getRssi())).forEach(e -> result.put(e.getKey(), e.getValue()));
+
+        return result;
+    }
 
     private void checkPermission() {
         if (Build.VERSION.SDK_INT >= 23) {
@@ -101,41 +108,56 @@ public class MainActivity extends AppCompatActivity implements ASScannerCallback
         return optimum.getPoint().toArray();
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.N)
     @Override
     public void scannedBleDevices(ScanResult result) {
+        Log.i(TAG, result.getDevice().getAddress());
         if (macAddresses.contains(result.getDevice().getAddress())) {
-            if (inBeacon.containsKey(result.getDevice().getAddress())) {
-                inBeacon.get(result.getDevice().getAddress()).setRssi(result.getRssi());
+            Log.i(TAG, result.getDevice().getAddress());
+            if (!inBeacon.containsKey(result.getDevice().getAddress())) {
+                inBeacon.put(result.getDevice().getAddress(), new Beacon(result.getDevice().getAddress(),
+                        coordinates.get(result.getDevice().getAddress()), result.getRssi()));
             }else {
-                inBeacon.put(result.getDevice().getAddress(), new Beacon(result.getDevice().getAddress(), 0.0, 0.0, result.getRssi()));
+                inBeacon.get(result.getDevice().getAddress()).setRssi(result.getRssi());
             }
-            if (inBeacon.get(result.getDevice().getAddress()).getRssi() >= 0.01
-                    && inBeacon.get(result.getDevice().getAddress()).getRssi() <= 0.01) {
-                if (inBeacon.get(result.getDevice().getAddress()).getRssi() > pMaxVal) {
-                    pMidVal = pMaxVal;
-                    pMidMac = pMaxMac;
-                    pMinVal = pMidVal;
-                    pMinMac = pMidMac;
-                    pMaxVal = inBeacon.get(result.getDevice().getAddress()).getRssi();
-                    pMaxMac = result.getDevice().getAddress();
-                } else if (inBeacon.get(result.getDevice().getAddress()).getRssi() > pMidVal) {
-                    pMinVal = pMidVal;
-                    pMinMac = pMidMac;
-                    pMidVal = inBeacon.get(result.getDevice().getAddress()).getRssi();
-                    pMidMac = result.getDevice().getAddress();
-                } else if (inBeacon.get(result.getDevice().getAddress()).getRssi() > pMinVal) {
-                    pMinVal = inBeacon.get(result.getDevice().getAddress()).getRssi();
-                    pMinMac = result.getDevice().getAddress();
-                }
+            inBeacon = sortByValue(inBeacon);
+            if (inBeacon.size() >= 3) {
+                Log.i("inBeacon", String.valueOf(inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 1]).getRssi()));
+                Log.i("inBeacon", String.valueOf(inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 2]).getRssi()));
+                Log.i("inBeacon", String.valueOf(inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 3]).getRssi()));
+                outCoordinates();
             }
         }
     }
 
 
-    private void outCoordinates(){
+    private void outCoordinates() {
+        ProgressDialog progressDialog = new ProgressDialog(this);
+        progressDialog.setTitle("Wait a minute...");
 
+        if (inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 1]).getRssi() >= 0
+                || inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 2]).getRssi() >= 0
+                || inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 3]).getRssi() >= 0) {
+
+        }else {
+            double[][] positions = {inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 1]).getCoordinates(),
+                    inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 2]).getCoordinates(),
+                    inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 3]).getCoordinates()};
+            double[] distances = {calculateDistance(mPower, inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 1]).getRssi()),
+                    calculateDistance(mPower, inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 2]).getRssi()),
+                    calculateDistance(mPower, inBeacon.get(inBeacon.keySet().toArray()[inBeacon.size() - 3]).getRssi())};
+
+            double[] coordinates = applyTrilateration(positions, distances);
+
+            mAdapter.addItem(coordinates[0] + " " + coordinates[1]);
+            mAdapter.notifyDataSetChanged();
+            mRecyclerView.smoothScrollToPosition(mAdapter.getItemCount()-1);
+
+            Log.i(TAG, "item is added");
+        }
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.N)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -149,10 +171,15 @@ public class MainActivity extends AppCompatActivity implements ASScannerCallback
 
         macAddresses.add(bOld);
         macAddresses.add(bNew);
+        macAddresses.add("C7:1E:1E:D1:AC:16");
+
+
+        coordinates.put(bNew, new double[]{0.0, 0.0});
+        coordinates.put(bOld, new double[]{9.0, 0.0});
+        coordinates.put("C7:1E:1E:D1:AC:16", new double[]{10.0, 2.0});
 
 
         new ASBleScanner(this, this);
-
         BluetoothAdapter mBluetoothAdapter = ASBleScanner.getmBluetoothAdapter();
 
         if (mBluetoothAdapter == null) {

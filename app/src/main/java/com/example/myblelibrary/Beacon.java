@@ -11,28 +11,31 @@ public class Beacon {
 
 
     private String macAddress;
-    private double x;
-    private double y;
+    private double[] coordinates;
     private double rssi;
 
-    public Beacon(String macAddress, double x, double y, double rssi) {
+    public Beacon(String macAddress, double[] coordinates, double rssi) {
         this.macAddress = macAddress;
-        this.x = x;
-        this.y = y;
-        this.rssi = 0;
+        this.coordinates = coordinates;
+        this.rssi = 0.0;
         list1.add(rssi);
     }
+
 
     public String getMacAddress() {
         return macAddress;
     }
 
     public double getX() {
-        return x;
+        return coordinates[0];
     }
 
     public double getY() {
-        return y;
+        return coordinates[1];
+    }
+
+    public double[] getCoordinates() {
+        return coordinates;
     }
 
     public double getRssi() {return rssi;}
